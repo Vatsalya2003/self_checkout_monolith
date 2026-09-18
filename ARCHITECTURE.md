@@ -18,6 +18,23 @@ The important structural fact — the one every later week trades away — is th
 **a request never leaves the process**. There is no serialization boundary, no
 partial failure mode, and no distributed coordination anywhere in the system.
 
+## Required architectural characteristics
+
+The characteristics this system must exhibit, each stated as a requirement
+concrete enough to pass or fail against a load-test run rather than as a bare
+adjective. Results follow in [§2](#2-measured-results), and the architectural
+analysis behind them in [§3](#3-quality-attributes).
+
+| Characteristic | Concrete requirement(s) |
+| --- | --- |
+| Correctness under concurrency | Stock must never go negative; for every SKU, decrements must exactly balance the applied units across completed transactions, even with 100 concurrent stations |
+| Performance (latency) | p95 under 5 ms for START_TRANSACTION, SCAN_ITEM and COMPLETE_TRANSACTION at 10 stations (worst observed: 4.66 ms) |
+| Scalability | Must remain correct — 0 errors, invariant holds — scaling from 10 to 100 concurrent stations, even if latency degrades |
+| Availability | No crashes, hangs, or request timeouts for the full duration of a run (60–120 s) at either load level |
+| Consistency of analytics | The popular-items window recomputes deterministically on the documented cadence (every 500 scans) without dropping or double-counting scan events |
+| Observability | Enough data — per-operation latency percentiles, error counts, low-stock and popular-items snapshots — to identify which operation is the bottleneck after a run |
+| Simplicity / deployability | Single process, single database file, reinitializable between test runs with no manual steps |
+
 ## 2. Measured results
 
 Both required runs, on the same machine (Apple Silicon, macOS 15; Node 22.8.0;
@@ -57,6 +74,30 @@ by collapsing, which is a far more benign failure mode than lock contention or
 connection-pool exhaustion would produce. Max latency (~390–404 ms in both runs,
 including at 10 stations) is dominated by occasional SQLite WAL checkpoints and
 V8 garbage collection pauses, not by load.
+
+## Top 3 prioritized characteristics, and the trade-offs
+
+This implementation deliberately prioritizes, in order:
+
+1. **Correctness under concurrency** ([§3.1](#31-correctness-under-concurrency--the-styles-strongest-result)) — because it is the attribute the assignment is built to test, and getting it wrong (overselling stock, negative inventory) is a hard failure regardless of how fast or elegant the rest of the system is.
+2. **Latency** ([§3.2](#32-performance--low-latency-single-core-ceiling)) — because it is directly measured by the load client, and it is the cheapest win available in a single-process design: no network hop, no serialization.
+3. **Simplicity / modifiability** ([§3.3](#33-simplicity-and-modifiability--excellent-now-and-that-is-the-trap)) — because this codebase is explicitly the starting point for several later architecture styles, and a tangled monolith this week means a harder rewrite later.
+
+**The trade-off, made explicit:** all three are bought by keeping everything in
+one place — one thread, one database connection, one process — which is exactly
+what makes horizontal scalability ([§3.4](#34-scalability--the-sharpest-limit))
+and fault isolation ([§3.5](#35-availability-and-fault-tolerance)) weak.
+
+Concretely: the same single-threaded, synchronous-DB design that makes
+`completeTransactionTx` atomic *without any explicit locking* — correctness, for
+free — is the same property that caps throughput at one core and rules out
+running multiple copies behind a load balancer without a redesign. The flat
+throughput in §2 is that ceiling being measured directly.
+
+Prioritizing correctness and latency here was a choice to accept a hard scaling
+ceiling and a single point of failure in exchange for a simple, verifiably
+correct baseline — a trade the later weeks of this course are structured to
+revisit.
 
 ## 3. Quality attributes
 
