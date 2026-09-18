@@ -52,8 +52,9 @@ src/
     ├── schema.sql   The single schema shared by every feature
     └── db.js        All business logic and persistence (synchronous)
 scripts/
-├── smoke-test.js      Asserts every endpoint against the OpenAPI contract
-└── check-invariant.js Verifies the stock invariant after a load test
+├── smoke-test.js         Asserts every endpoint against the OpenAPI contract
+├── check-invariant.js    Verifies the stock invariant after a load test
+└── latency-diagnostic.js Instrumented harness for the tail-latency analysis
 ```
 
 `src/db/db.js` holds the business rules; `src/server.js` holds no logic beyond
@@ -68,6 +69,17 @@ With the server running:
 npm run smoke     # 48 assertions covering every endpoint, field, and status code
 npm run check     # stock invariant, run against the DB file after a load test
 ```
+
+For the tail-latency investigation behind `ARCHITECTURE.md` §2:
+
+```bash
+node --trace-gc scripts/latency-diagnostic.js          # default pragmas
+WAL_AUTOCHECKPOINT=0 node --trace-gc scripts/latency-diagnostic.js   # checkpoints off
+```
+
+It mounts the real app behind timing middleware, so server-side handler latency
+can be compared against the load client's reported max on the same clock as
+`--trace-gc`.
 
 `smoke-test.js` checks the exact field names, shapes, and status codes in the
 OpenAPI spec — including the error paths (400 on a missing `stationId`, 404 on

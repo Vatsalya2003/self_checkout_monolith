@@ -71,9 +71,36 @@ The encouraging detail is how *well-behaved* the queueing is. p99 stays at
 25 ms — under 2× the median — and zero requests failed or timed out at either
 level. The single-writer design degrades by slowing down uniformly rather than
 by collapsing, which is a far more benign failure mode than lock contention or
-connection-pool exhaustion would produce. Max latency (~390–404 ms in both runs,
-including at 10 stations) is dominated by occasional SQLite WAL checkpoints and
-V8 garbage collection pauses, not by load.
+connection-pool exhaustion would produce.
+
+Max latency (~390–404 ms in both runs, including at 10 stations) is a rare
+outlier rather than a load effect, and it does **not** originate in request
+handling. Three further 10-station/60 s diagnostic runs (~1.3 M requests total),
+with the server mounted behind timing middleware and started under
+`--trace-gc`, bound both of the obvious candidate causes out:
+
+- **Not V8 GC.** ~1,500 collections per run, longest pause **5.71 ms**, and not
+  one pause above 25 ms. Total GC time was ~1.4 s across a 61 s run, spread over
+  many sub-millisecond scavenges. A 390 ms request cannot be a GC pause.
+- **Not WAL checkpoints.** Varying `PRAGMA wal_autocheckpoint` moved the
+  outliers the *opposite* way to the hypothesis: disabling checkpoints entirely
+  gave the **worst** tail (server max 56.9 ms, client max 114.1 ms), while making
+  them 20× more frequent gave a **better** one (server max 37.8 ms, client max
+  76.0 ms).
+- **Server-side handler time never exceeded 56.9 ms**, with zero requests over
+  100 ms across all three runs.
+
+The ~390 ms figure also never reproduced — client-reported maxima in the three
+diagnostic runs were 31.7 / 114.1 / 76.0 ms. In every run the client's max was
+roughly double the server's, which points at the part of the path the server
+cannot see: load-client JVM warm-up and JIT, connection establishment, or host
+scheduling noise. So the outlier is measurement-environment noise, not a
+property of this architecture, and the percentiles — not the max — are the
+numbers worth comparing across weeks.
+
+Reproduce with [`self-checkout/scripts/latency-diagnostic.js`](self-checkout/scripts/latency-diagnostic.js),
+which mounts the real app behind timing middleware and exposes
+`WAL_AUTOCHECKPOINT` for the checkpoint comparison.
 
 ## Top 3 prioritized characteristics, and the trade-offs
 
