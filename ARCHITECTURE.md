@@ -98,6 +98,16 @@ scheduling noise. So the outlier is measurement-environment noise, not a
 property of this architecture, and the percentiles — not the max — are the
 numbers worth comparing across weeks.
 
+**Caveat on the diagnostic runs.** They used the instrumented harness, which
+adds two `performance.now()` calls and a `finish` listener per request. That can
+only *add* latency, so it does not weaken the two bounds above — a GC pause
+ceiling of 5.71 ms and a server-side max of 56.9 ms both hold with the overhead
+included. It does mean the diagnostic runs' throughput (6,421 / 6,115 / 5,923
+items/sec) sits below the uninstrumented 6,566 items/sec of the official run,
+and the split between instrumentation cost and ordinary run-to-run variance was
+not separated. The headline figures in the table above come from the
+uninstrumented server; the diagnostic numbers are used only as upper bounds.
+
 Reproduce with [`self-checkout/scripts/latency-diagnostic.js`](self-checkout/scripts/latency-diagnostic.js),
 which mounts the real app behind timing middleware and exposes
 `WAL_AUTOCHECKPOINT` for the checkpoint comparison.
