@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# SQLite database + WAL sidecars, regenerated on every server start
+self-checkout/data/
+
+# The course repo is cloned alongside, not vendored into, this submission
+CS6510-2026/
+
+# Build output
+out/
+
+.DS_Store

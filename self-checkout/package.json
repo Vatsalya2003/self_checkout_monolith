@@ -1,0 +1,20 @@
+{
+  "name": "self-checkout-monolith",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CS6510 Week 1 — self-checkout system implemented as a single-process monolith (Node.js + Express + better-sqlite3).",
+  "type": "commonjs",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "check": "node scripts/check-invariant.js",
+    "smoke": "node scripts/smoke-test.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "express": "^4.21.0"
+  }
+}
